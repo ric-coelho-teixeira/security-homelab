@@ -1,36 +1,85 @@
-# Security Homelab
+# Security homelab
 
-Personal cybersecurity lab built to practise network security, attack simulation and intrusion detection.
+This is my first hands-on cybersecurity project. I am building it to learn by
+doing: each lab is set up from scratch, tested, and documented step by step,
+including the mistakes and what they taught me. It builds on my background in
+broadcast IP networks (multicast, SRT, network operations) and is part of my
+preparation for a Master's degree in cybersecurity.
 
-## Goals
-- Build a segmented virtual network with a firewall between attacker and target zones
-- Run controlled attacks against intentionally vulnerable machines
-- Detect these attacks with an IDS and analyse the alerts
-- Later: monitor IP media traffic (multicast, SRT) for anomalies, based on my experience in broadcast infrastructure
+The lab is an isolated virtual network, built with VirtualBox on a single
+Windows host. A firewall separates an attacker zone from a target zone, so
+that every attack crosses a single point where it can be filtered, logged
+and detected. The long-term goal is to study attacks against real-time media
+transport (SRT, multicast) and how to detect them.
 
-## Architecture
-| Component | Role | Tool |
+## Labs
+
+Each lab lives in its own directory, with a short README explaining what it
+does, how to build it and what I learned.
+
+| Lab | Description | Status |
 |---|---|---|
-| Hypervisor | Hosts all VMs | VirtualBox (migration to Proxmox VE planned) |
-| Firewall / router | Network segmentation | OPNsense |
-| Attacker | Offensive testing | Kali Linux |
-| Targets | Vulnerable services | Metasploitable 2 (includes DVWA) |
-| Detection | Intrusion detection | Suricata, then Wazuh |
+| [`lab-opnsense-firewall`](lab-opnsense-firewall/) | OPNsense firewall and router between the lab zones | Done |
+| `lab-kali-attacker` | Kali Linux attacker in the attack zone | In progress |
+| `lab-metasploitable-target` | Metasploitable 2 target and firewall rules | Planned |
+| `lab-suricata-ids` | Suricata intrusion detection and first alerts | Planned |
+| `lab-srt-multicast` | Attacks and anomaly detection on SRT and multicast streams | Planned |
 
-See the full design, addressing plan and firewall policy in [Lab architecture](docs/architecture.md).
+The shared design (network diagram, addressing plan, firewall policy) is
+described in [`common/architecture.md`](common/architecture.md).
 
-## Documentation
-- [Lab architecture](docs/architecture.md)
-- [01 - OPNsense firewall setup](docs/01-opnsense-setup.md)
+![Lab network diagram](images/lab-network.svg)
 
-## Progress
-- [x] Repository and documentation structure
-- [x] Network diagram and addressing plan
-- [x] Hypervisor setup and virtual networks
-- [x] OPNsense firewall installed and addressed
-- [ ] Kali Linux (attacker) connected
-- [ ] Metasploitable 2 (target) and firewall rules
-- [ ] Suricata IDS deployment and first alerts
+## Requirements
 
-## Disclaimer
-All tests are performed in an isolated lab environment that I own. No external systems are targeted.
+- A Windows host with hardware virtualization enabled (AMD-V or VT-x) and at
+  least 16 GB of RAM (32 GB recommended for all phases).
+- [Oracle VirtualBox](https://www.virtualbox.org/) 7.x. `VBoxManage`, its
+  command-line tool, is used by the build scripts.
+- The installation images listed in each lab's README. Images are never
+  stored in this repository.
+
+## Getting started
+
+Clone the repository, then follow the labs in order, starting with the
+firewall:
+
+```powershell
+git clone https://github.com/ric-coelho-teixeira/security-homelab.git
+cd security-homelab\lab-opnsense-firewall
+```
+
+Each lab's README gives the exact commands and checks.
+
+## Repository layout
+
+```
+security-homelab/
+├── common/        shared design: architecture, addressing plan, policy
+├── images/        diagrams (draw.io SVG files, editable in draw.io)
+├── lab-*/         one directory per lab
+├── .gitignore     keeps VM images, captures and secrets out of Git
+└── LICENSE
+```
+
+## Safety
+
+All tests are performed in an isolated lab environment that I own. No
+external systems are targeted. Vulnerable machines are only attached to
+VirtualBox internal networks and never to a bridged or NAT adapter. No
+passwords, keys or information about real networks are committed.
+
+## License
+
+The documentation and scripts in this repository are distributed under the
+[MIT License](LICENSE).
+
+## Other resources
+
+- [OPNsense documentation](https://docs.opnsense.org/)
+- [Kali Linux documentation](https://www.kali.org/docs/)
+- [Suricata documentation](https://docs.suricata.io/)
+- [MITRE ATT&CK](https://attack.mitre.org/), the knowledge base of attacker
+  techniques used to describe each scenario.
+- [vincentbernat/network-lab](https://github.com/vincentbernat/network-lab),
+  whose layout inspired this repository.
