@@ -38,8 +38,10 @@ described in [`common/architecture.md`](common/architecture.md).
 
 A Windows host with hardware virtualization enabled (AMD-V or VT-x) and at
   least 16 GB of RAM (32 GB recommended for all phases).
+
 [Oracle VirtualBox](https://www.virtualbox.org/) 7.x. `VBoxManage`, its
   command-line tool, is used by the build scripts.
+
 The installation images listed in each lab's README. Images are never
   stored in this repository.
 
