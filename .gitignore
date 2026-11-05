@@ -1,0 +1,26 @@
+# Virtual machine images and disks
+*.ova
+*.ovf
+*.vdi
+*.vmdk
+*.vhd
+*.iso
+*.qcow2
+
+# Packet captures (may be large or contain sensitive data) - commit only sanitized samples in captures/samples/
+*.pcap
+*.pcapng
+!captures/samples/*.pcap
+
+# Secrets
+.env
+*.key
+*.pem
+*secret*
+*password*
+*.kdbx
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
