@@ -1,66 +1,92 @@
-# 01 - OPNsense firewall setup
+# OPNsense firewall
 
-OPNsense is the central piece of the lab: it routes and filters all traffic between the zones, and will later inspect it with Suricata.
+OPNsense is the central piece of the lab: it routes and filters all traffic
+between the zones, and will later inspect it with Suricata.
 
-**Version:** OPNsense 26.7 (amd64) - **Date:** November 2026
+- **Version:** OPNsense 26.7 (amd64)
+- **Built:** November 2026
 
-## 1. Image download and verification
+## Topology
 
-- Image type: `dvd` (ISO installer), architecture `amd64`.
-- The SHA-256 hash of the `.iso.bz2` file was checked against the checksum file published on the mirror (`Get-FileHash` in PowerShell) **before** decompression.
+| Adapter | VirtualBox mode | Network | OPNsense interface | Address | DHCP range |
+|---|---|---|---|---|---|
+| 1 | NAT | — | `em0` (WAN) | DHCP (10.0.2.15/24) | — |
+| 2 | Internal network | `lan_attack` | `em1` (LAN) | 10.10.10.1/24 | .100 - .200 |
+| 3 | Internal network | `lan_targets` | `em2` (OPT1) | 10.10.20.1/24 | .100 - .200 |
+| 4 | Internal network | `lan_monitor` | `em3` (OPT2) | 10.10.30.1/24 | none |
 
-## 2. Virtual machine
+All adapters use the Intel PRO/1000 MT Desktop model (82540EM), which FreeBSD
+names `em`. They are created before installation so that FreeBSD numbers them
+in a fixed order. See [`../common/architecture.md`](../common/architecture.md)
+for the full design.
 
-| Setting | Value | Reason |
-|---|---|---|
-| Type | BSD / FreeBSD (64-bit) | OPNsense is based on FreeBSD |
-| vCPU / RAM | 2 / 2 GB | Room for Suricata packet inspection |
-| Disk | 20 GB VDI, dynamically allocated | Grows only with actual data |
-| Firmware | Legacy BIOS | EFI / Secure Boot not needed |
-| Audio, USB | Disabled | Reduce attack surface |
+## Build
 
-### Network adapters
+### 1. Download and verify the image
 
-All adapters use the Intel PRO/1000 MT Desktop model, which FreeBSD names `em`.
+Download the `dvd` image for `amd64` from the
+[OPNsense download page](https://opnsense.org/download/). Check its SHA-256
+hash against the checksum file published on the mirror **before**
+decompressing it:
 
-| Adapter | VirtualBox mode | Network | OPNsense interface |
-|---|---|---|---|
-| 1 | NAT | — | `em0` (WAN) |
-| 2 | Internal network | `lan_attack` | `em1` (LAN) |
-| 3 | Internal network | `lan_targets` | `em2` (OPT1) |
-| 4 | Internal network | `lan_monitor` | `em3` (OPT2) |
+```powershell
+Get-FileHash .\OPNsense-26.7-dvd-amd64.iso.bz2 -Algorithm SHA256
+```
 
-All four adapters were created before installation so that FreeBSD numbers them in a fixed order.
+Then extract the `.iso` file with 7-Zip.
 
-## 3. Installation
+### 2. Create the virtual machine
 
-- Installer account (`installer`) from the live system, French keymap, **UFS** file system (lighter than ZFS; snapshots are handled by VirtualBox).
-- The ISO was removed after installation: the boot order (optical before hard disk) would otherwise start the live system again.
+[`create-vm.ps1`](create-vm.ps1) creates the VM with `VBoxManage`: 2 vCPU,
+2 GB of RAM, a 20 GB dynamically allocated disk, legacy BIOS, audio and USB
+disabled, and the four adapters above.
 
-## 4. IP addressing (console, option 2)
+```powershell
+.\create-vm.ps1 -IsoPath "D:\Lab\ISO\OPNsense-26.7-dvd-amd64.iso" -BaseFolder "D:\Lab\VMs"
+```
 
-| Interface | Zone | Address | DHCP range |
-|---|---|---|---|
-| LAN (`em1`) | LAN_ATTACK | 10.10.10.1/24 | 10.10.10.100 - 10.10.10.200 |
-| OPT1 (`em2`) | LAN_TARGETS | 10.10.20.1/24 | 10.10.20.100 - 10.10.20.200 |
-| OPT2 (`em3`) | LAN_MONITOR | 10.10.30.1/24 | none (static addresses only) |
-| WAN (`em0`) | VirtualBox NAT | DHCP (10.0.2.15/24) | — |
+### 3. Install
 
-- IPv6 is not used for now.
-- The web GUI stays on **HTTPS** (no plain-text administration).
+1. Start the VM and log in as `installer` / `opnsense` (this account only
+   exists on the live system).
+2. Choose the keymap, the **UFS** file system and the 20 GB disk (`ada0`).
+3. Set a strong root password (never committed here) and reboot.
+4. Remove the ISO from the virtual drive: the boot order puts the optical
+   drive before the hard disk.
 
-## 5. Verification
+### 4. Assign IP addresses
 
-- WAN connectivity: `ping 1.1.1.1` from the console - 3/3 packets received, ~18 ms, 0% loss.
+From the console menu, option `2) Set interface IP address`, for each
+interface:
+
+- answer `n` to DHCP and to IPv6;
+- enter the address and the prefix length (`24`) from the table above;
+- enable the DHCP server on LAN and OPT1 only;
+- keep the web GUI on HTTPS.
+
+## Checks
+
+```
+LAN (em1)   -> v4: 10.10.10.1/24
+OPT1 (em2)  -> v4: 10.10.20.1/24
+OPT2 (em3)  -> v4: 10.10.30.1/24
+WAN (em0)   -> v4/DHCP4: 10.0.2.15/24
+```
+
+- WAN connectivity, from console option `7) Ping host`: `ping 1.1.1.1`
+  returns 3/3 packets, about 18 ms, 0% loss.
 - VirtualBox snapshots: `Post install`, `02 - IP addressing`.
 
-## Lessons learned
+## What I learned
 
-- Interface auto-detection does not work in VirtualBox: virtual cables are always connected, so no link change is detected. Interfaces were assigned by name.
-- The OPNsense console wizard writes the configuration only at the end: `Ctrl+C` cancels a wrong entry safely.
-- Always re-read which interface is being configured before validating: a wrong choice would remove the gateway of a whole zone.
-- OPT interfaces have no firewall rules by default, so all their traffic is blocked (deny by default). Rules will be written explicitly.
-
-## Next step
-
-Connect Kali Linux to `lan_attack`, check DHCP, routing and DNS, and access the web GUI after verifying the certificate fingerprint.
+- Interface auto-detection does not work in VirtualBox: virtual cables are
+  always connected, so no link change is detected. Interfaces must be
+  assigned by name.
+- The console wizard writes the configuration only at the end, so `Ctrl+C`
+  safely cancels a wrong entry. Always re-read which interface is being
+  configured: a wrong choice removes the gateway of a whole zone.
+- In the console prompts, the capital letter (`[y/N]`) is the default
+  answer when pressing Enter.
+- OPT interfaces have no firewall rules by default, so all their traffic is
+  blocked (deny by default). Rules will be written explicitly in the next
+  labs.

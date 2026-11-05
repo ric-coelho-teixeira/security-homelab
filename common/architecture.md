@@ -11,9 +11,9 @@ This document describes the network design of the security homelab: a small, iso
 
 ## Network diagram
 
-![Lab network diagram](lab-network.drawio.svg)
+![Lab network diagram](../images/lab-network.svg)
 
-*Editable source: open `lab-network.drawio.svg` directly in [draw.io](https://app.diagrams.net).*
+*Editable source: open `../images/lab-network.svg` directly in [draw.io](https://app.diagrams.net).*
 
 ## Addressing plan
 
