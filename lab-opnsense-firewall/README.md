@@ -90,3 +90,25 @@ WAN (em0)   -> v4/DHCP4: 10.0.2.15/24
 - OPT interfaces have no firewall rules by default, so all their traffic is
   blocked (deny by default). Rules will be written explicitly in the next
   labs.
+
+## Initial configuration (setup wizard)
+
+Start OPNsense first, then Kali. Otherwise the DHCP request times out and Kali gets no address (`eth0` is UP but has no `inet` line).
+
+| Setting | Choice | Why |
+|---|---|---|
+| Domain | `internal` | `.local` is reserved for mDNS; `.internal` is reserved for private use |
+| Timezone | Europe/Paris | Correct timestamps are essential to read logs and rebuild an attack timeline |
+| DNS | Unbound as a recursive resolver, DNSSEC enabled | No third-party DNS; DNSSEC checks the signatures of DNS answers |
+| WAN | DHCP, block RFC1918 and bogon networks | Drops unsolicited inbound traffic from spoofed or impossible source addresses |
+| LAN | 10.10.10.1/24 with DHCP | Static gateway address for the attack zone |
+| Multi-WAN optimisation | Disabled | Only one gateway (as advised by the built-in help) |
+
+## Checks
+- DHCP lease visible in Services → Dnsmasq DNS & DHCP → Leases (hostname `kali`, VirtualBox MAC prefix `08:00:27`)
+- Kali reaches its gateway, the Internet and resolves domain names
+
+## What I learned
+- **Stateful firewall**: blocking private networks on a WAN that is itself private (VirtualBox NAT) does not break Internet access, because replies match existing states before any rule is checked.
+- **Read the help before changing a setting**: the default "Optimize for Multiwan" was not suited to a single-gateway setup.
+- **DNSSEC depends on time**: signatures have validity dates, so a wrong clock breaks name resolution.
