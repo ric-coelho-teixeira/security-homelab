@@ -19,6 +19,8 @@
 *secret*
 *password*
 *.kdbx
+# OPNsense configuration backups (contain password hashes)
+config-*.xml
 
 # OS and editor files
 .DS_Store

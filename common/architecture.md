@@ -29,10 +29,15 @@ This document describes the network design of the security homelab: a small, iso
 | Source | Destination | Action | Reason |
 |---|---|---|---|
 | LAN_ATTACK | LAN_TARGETS | Allow (logged) | Attack scenarios; traffic inspected by Suricata |
+| LAN_ATTACK | Private networks (RFC 1918), including the home network | **Block** (logged) | Isolation: a compromised lab VM must never reach the home network |
 | LAN_ATTACK | WAN | Allow | Kali updates and tools |
 | LAN_TARGETS | WAN | **Block** | Vulnerable hosts must never reach the Internet |
 | LAN_TARGETS | LAN_ATTACK | Block (except established) | Only replies to the attacker; reverse shells are logged as alerts |
 | Any | OPNsense GUI | Allow from LAN_ATTACK only | Administration |
+
+Status: the LAN_ATTACK rules are implemented and tested (November 2026), see
+[`../lab-opnsense-firewall/README.md`](../lab-opnsense-firewall/README.md#6-isolate-the-attack-zone-lan-firewall-rules).
+The LAN_TARGETS rules will be added with the Metasploitable 2 lab.
 
 ## Virtual machines
 

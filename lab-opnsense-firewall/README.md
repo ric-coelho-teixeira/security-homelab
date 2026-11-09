@@ -64,7 +64,61 @@ interface:
 - enable the DHCP server on LAN and OPT1 only;
 - keep the web GUI on HTTPS.
 
+### 5. Initial configuration (setup wizard)
+
+Start OPNsense first and wait for the console menu, then start Kali.
+Otherwise the DHCP request times out and Kali gets no address (`eth0` is UP
+but has no `inet` line). Shut down in the reverse order.
+
+The wizard is in System → Configuration → Wizard.
+
+| Setting | Choice | Why |
+|---|---|---|
+| Domain | `internal` | `.local` is reserved for mDNS; `.internal` is reserved for private use |
+| Timezone | Europe/Paris | Correct timestamps are essential to read logs and rebuild an attack timeline |
+| DNS | Unbound as a recursive resolver, DNSSEC enabled | No third-party DNS; DNSSEC checks the signatures of DNS answers |
+| WAN | DHCP, block RFC1918 and bogon networks | Drops unsolicited inbound traffic from spoofed or impossible source addresses |
+| LAN | 10.10.10.1/24 with DHCP | Static gateway address for the attack zone |
+| Multi-WAN optimisation | Disabled | Only one gateway (as advised by the built-in help) |
+
+### 6. Isolate the attack zone (LAN firewall rules)
+
+**Problem.** The default rule "Default allow LAN to any" lets Kali reach any
+destination. Because the WAN uses VirtualBox NAT, "any" also includes the
+home network: Kali → OPNsense → VirtualBox NAT → Windows host → home router.
+"Block RFC1918" on the WAN does not help here, because it only filters
+traffic *entering* through the WAN, not traffic leaving the lab.
+
+**Fix.** Block the private address ranges (RFC 1918) from the attack zone,
+while still allowing OPNsense itself, the target zone and the Internet.
+
+First, an alias groups the three private ranges under one name
+(Firewall → Aliases, type **Network(s)**):
+
+| Alias | Content | Description |
+|---|---|---|
+| `RFC1918` | `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` | Private networks (RFC 1918) |
+
+Then the rules on the LAN interface (Firewall → Rules, direction *in*, IPv4,
+any protocol, source *LAN network*). With the *quick* option, the first rule
+that matches wins, so **the order matters**:
+
+| # | Action | Destination | Log | Description |
+|---|---|---|---|---|
+| 1 | Pass | This Firewall | no | Kali to OPNsense (DNS, ping, GUI) |
+| 2 | Pass | OPT1 network | no | Kali to targets |
+| 3 | **Block** | `RFC1918` | **yes** | Block lab to private networks (home) |
+| 4 | Pass | any | no | Default allow LAN to any rule (Internet) |
+
+- Rule 1 is required because OPNsense's own address (10.10.10.1) belongs to
+  the `RFC1918` alias: without it, rule 3 would also block DNS (Unbound runs
+  on OPNsense).
+- Rule 4 is the existing default rule, kept after the three new ones.
+- *Block* silently drops the packets; *Reject* would send a refusal back.
+
 ## Checks
+
+### After installation
 
 ```
 LAN (em1)   -> v4: 10.10.10.1/24
@@ -75,7 +129,31 @@ WAN (em0)   -> v4/DHCP4: 10.0.2.15/24
 
 - WAN connectivity, from console option `7) Ping host`: `ping 1.1.1.1`
   returns 3/3 packets, about 18 ms, 0% loss.
-- VirtualBox snapshots: `Post install`, `02 - IP addressing`.
+
+### After the setup wizard
+
+- DHCP lease visible in Services → Dnsmasq DNS & DHCP → Leases (hostname
+  `kali`, VirtualBox MAC prefix `08:00:27`).
+- Kali reaches its gateway, the Internet and resolves domain names.
+
+### Isolation of the attack zone (before / after the LAN rules)
+
+Tests run from Kali with `ping -c 2 <destination>`:
+
+| Destination | Before | After | Rule |
+|---|---|---|---|
+| OPNsense (10.10.10.1) | replies | replies | 1 |
+| Internet (1.1.1.1) | replies | replies | 4 |
+| Domain name (kali.org) | replies | replies | 1 (DNS) then 4 |
+| **Home router** | **replies** | **100% packet loss** | 3 |
+
+- The blocked packets appear in Firewall → Log Files → Live View, with the
+  description of rule 3.
+- The configuration was exported before and after the change
+  (System → Configuration → Backups). These files are never committed: they
+  contain password hashes.
+- VirtualBox snapshots: `Post install`, `02 - IP addressing`,
+  `03 - Wizard done`, `04 - LAN rules`.
 
 ## What I learned
 
@@ -88,27 +166,21 @@ WAN (em0)   -> v4/DHCP4: 10.0.2.15/24
 - In the console prompts, the capital letter (`[y/N]`) is the default
   answer when pressing Enter.
 - OPT interfaces have no firewall rules by default, so all their traffic is
-  blocked (deny by default). Rules will be written explicitly in the next
-  labs.
-
-## Initial configuration (setup wizard)
-
-Start OPNsense first, then Kali. Otherwise the DHCP request times out and Kali gets no address (`eth0` is UP but has no `inet` line).
-
-| Setting | Choice | Why |
-|---|---|---|
-| Domain | `internal` | `.local` is reserved for mDNS; `.internal` is reserved for private use |
-| Timezone | Europe/Paris | Correct timestamps are essential to read logs and rebuild an attack timeline |
-| DNS | Unbound as a recursive resolver, DNSSEC enabled | No third-party DNS; DNSSEC checks the signatures of DNS answers |
-| WAN | DHCP, block RFC1918 and bogon networks | Drops unsolicited inbound traffic from spoofed or impossible source addresses |
-| LAN | 10.10.10.1/24 with DHCP | Static gateway address for the attack zone |
-| Multi-WAN optimisation | Disabled | Only one gateway (as advised by the built-in help) |
-
-## Checks
-- DHCP lease visible in Services → Dnsmasq DNS & DHCP → Leases (hostname `kali`, VirtualBox MAC prefix `08:00:27`)
-- Kali reaches its gateway, the Internet and resolves domain names
-
-## What I learned
-- **Stateful firewall**: blocking private networks on a WAN that is itself private (VirtualBox NAT) does not break Internet access, because replies match existing states before any rule is checked.
-- **Read the help before changing a setting**: the default "Optimize for Multiwan" was not suited to a single-gateway setup.
-- **DNSSEC depends on time**: signatures have validity dates, so a wrong clock breaks name resolution.
+  blocked (deny by default).
+- **Stateful firewall:** blocking private networks on a WAN that is itself
+  private (VirtualBox NAT) does not break Internet access, because replies
+  match existing states before any rule is checked.
+- **Read the help before changing a setting:** the default "Optimize for
+  Multiwan" was not suited to a single-gateway setup.
+- **DNSSEC depends on time:** signatures have validity dates, so a wrong
+  clock breaks name resolution.
+- **A protection that has not been tested does not exist:** the "before"
+  test showed that the lab was not isolated from the home network, which
+  would have allowed lateral movement (MITRE ATT&CK TA0008) from a
+  compromised VM.
+- **New rules are added at the bottom of the list:** placed after "Default
+  allow LAN to any", the block rule would never have matched. Check the
+  order before clicking Apply. In OPNsense 26.7, a rule is moved by ticking
+  it, then clicking the ← arrow of the rule it must go before.
+- **The source port is almost always "any":** clients pick a random
+  (ephemeral) source port; only the destination port is fixed.
