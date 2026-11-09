@@ -3,8 +3,7 @@
 This is my first hands-on cybersecurity homelab project. I am building it to learn by
 doing: each lab is set up from scratch, tested, and documented step by step,
 including the mistakes and what they taught me. It builds on my background in
-broadcast IP networks (multicast, SRT, network operations) and is one of the projects included in my
-preparation for a Master's degree in cybersecurity.
+broadcast IP networks (multicast, SRT, network operations).
 
 The lab is an isolated virtual network, built with VirtualBox on a single
 Windows host. A firewall separates an attacker zone from a target zone, so
