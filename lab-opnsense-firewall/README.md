@@ -184,3 +184,17 @@ Tests run from Kali with `ping -c 2 <destination>`:
   it, then clicking the ← arrow of the rule it must go before.
 - **The source port is almost always "any":** clients pick a random
   (ephemeral) source port; only the destination port is fixed.
+
+### 7. Disable IPv6 on the attack zone (defense in depth)
+
+The RFC1918 block rule only covers IPv4. The default rule "Default allow LAN IPv6 to any" was still enabled, so IPv6 traffic would not have been filtered if IPv6 ever became available on the WAN.
+
+- Snapshot taken before the change (`05 - avant IPv6`).
+- Rule disabled (not deleted), IPv4 rules unchanged, changes applied.
+
+| Test from Kali | Before | After |
+|---|---|---|
+| `ping 1.1.1.1` / `ping kali.org` | OK | OK (0% loss) |
+| `ping -6 ipv6.google.com` | Network is unreachable | Network is unreachable |
+
+The lab had no IPv6 path before the change (no IPv6 route on Kali), so this test shows the change broke nothing, not that the rule blocks IPv6. IPv6 is now disabled by design, not by accident.
